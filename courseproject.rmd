@@ -1,0 +1,89 @@
+---
+title: "course project"
+author: "ma-haoran"
+date: "2020/12/30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Process Data
+
+### Download Files
+```{r download.file}
+setwd("C:/Users/Apple/Desktop/RStudio Tour/assignment/project8.1")
+library(caret)
+library(ggplot2)
+library(data.table)
+
+if(!file.exists("train.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile = "train.csv")
+}
+
+if(!file.exists("test.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile = "test.csv")
+}
+
+```
+### Read File
+```{r read.file}
+trainData <- fread("train.csv")
+testData <- fread("test.csv")
+trainData$classe<-as.factor(trainData$classe)
+```
+### Tidy Data
+remove the columns contain NA
+```{r rmNA}
+
+tidy.trainDT  <- trainData[,which(colSums(is.na(trainData))==0),with=FALSE]
+
+tidy.testDT <- testData[,which(colSums(is.na(testData))==0),with=FALSE]
+```
+remove zero covariable
+```{r rmZero}
+nzv<-nearZeroVar(tidy.trainDT,saveMetrics = TRUE)
+tidy.trainDT <- tidy.trainDT[,nzv$nzv==FALSE,with=FALSE]
+
+nzv<-nearZeroVar(tidy.testDT,saveMetrics = TRUE)
+tidy.testDT <- tidy.testDT[,nzv$nzv==FALSE,with=FALSE]
+
+```
+**Remove the column1 since it is the serial number and could distort the prediction.**
+```{r rm"rowname"}
+tidy.trainDT<-tidy.trainDT[,-1,with=FALSE]
+tidy.testDT<- tidy.testDT[,-1,with=FALSE]
+
+```
+
+## Create cross-validation data
+split train-data into training and validation
+```{r split}
+set.seed(2020)
+inTrain<-createDataPartition(tidy.trainDT$classe,p=0.7,list=FALSE)
+training<-tidy.trainDT[inTrain,]
+testing<-tidy.trainDT[-inTrain,]
+```
+
+## Model
+Apply random forests as the model
+```{r model,cache=TRUE}
+set.seed(1229)
+training<-as.data.frame(training)
+mod <- train(classe~.,data=training,method="rf",
+             trControl=trainControl(method="cv",number=5),ntree=200)
+```
+test the model
+```{r test}
+pred<-predict(mod,testing)
+confusionMatrix(pred,testing$classe)
+```
+
+## Result
+```{r result}
+predict(mod,newdata=tidy.testDT)
+```
